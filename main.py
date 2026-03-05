@@ -381,7 +381,7 @@ def sign_in_by_step(user: User, step: int, debug: bool = False) -> dict:
         sign_in_result = requests.post(WEB_DICT['sign_in_api'], data=json.dumps(generate_data(user)), headers=generate_header(user,WEB_DICT['sign_in_api'])).json()
         logger.debug(f"{user.username}({user.student_Id}) 晚寝签到返回信息 {sign_in_result}")
 
-        if sign_in_result['code'] == 200:
+        if sign_in_result['code'] == 200 or '您今天已完成签到' in sign_in_result['msg']:
             logger.info(f"为 {user.username}({user.student_Id}) 晚寝签到成功")
             return {'success': True, 'msg': '', 'step': step + 1}
 
