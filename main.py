@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from email.header import Header
 from email.mime.text import MIMEText
 from email.utils import formataddr
+from html import escape
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -361,26 +362,58 @@ def build_mail_body(user: User, result: dict) -> str:
     return "未记录到失败日志"
 
 
-def send_email_for_user(user: User, result: dict):
-    if not EMAIL_CONFIG.get("enabled", False):
-        return
+def build_summary_table_html(all_users: List[User], results: dict) -> str:
+    rows = []
+    for user in all_users:
+        user_result = results.get(user.student_Id)
+        if not user.enabled:
+            sign_status = "未执行(未启用)"
+        elif not user_result:
+            sign_status = "未执行"
+        else:
+            sign_status = "成功" if user_result.get("success") else "失败"
 
-    if not user.email:
-        logger.warning(f"skip email: user {user.student_Id} has no email configured")
-        return
+        rows.append(
+            "<tr>"
+            f"<td>{escape(user.username or '')}</td>"
+            f"<td>{user.student_Id}</td>"
+            f"<td>{escape(user.email)}</td>"
+            f"<td>{'开启' if user.enabled else '关闭'}</td>"
+            f"<td>{sign_status}</td>"
+            "</tr>"
+        )
+
+    return (
+        "<html><body>"
+        f"<p>签到时间: {escape(get_time()['full'])}</p>"
+        "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse: collapse;'>"
+        "<thead><tr><th>username</th><th>学号</th><th>邮箱</th><th>开启状态</th><th>签到是否成功</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody>"
+        "</table>"
+        "</body></html>"
+    )
+
+
+def send_mail(to_email: str, subject: str, body: str, subtype: str = "plain") -> bool:
+    if not EMAIL_CONFIG.get("enabled", False):
+        return False
+
+    if not to_email:
+        logger.warning("skip email: receiver email is empty")
+        return False
 
     required_keys = ["smtp_server", "smtp_port", "sender_email", "sender_password"]
     missing = [key for key in required_keys if not EMAIL_CONFIG.get(key)]
     if missing:
         logger.error(f"email config missing required keys: {missing}")
-        return
+        return False
 
-    message = MIMEText(build_mail_body(user, result), "plain", "utf-8")
-    message["Subject"] = Header(build_mail_subject(result), "utf-8")
+    message = MIMEText(body, subtype, "utf-8")
+    message["Subject"] = Header(subject, "utf-8")
     sender_name = str(EMAIL_CONFIG.get("sender_name", "AHUT Auto Sign-In"))
     sender_email = str(EMAIL_CONFIG["sender_email"])
     message["From"] = formataddr((str(Header(sender_name, "utf-8")), sender_email))
-    message["To"] = user.email
+    message["To"] = to_email
 
     smtp_server = str(EMAIL_CONFIG["smtp_server"])
     smtp_port = int(EMAIL_CONFIG["smtp_port"])
@@ -397,45 +430,77 @@ def send_email_for_user(user: User, result: dict):
 
         with server:
             server.login(sender_email, sender_password)
-            server.sendmail(sender_email, [user.email], message.as_string())
-        logger.info(f"email sent to {user.email} for {user.student_Id}")
+            server.sendmail(sender_email, [to_email], message.as_string())
+        logger.info(f"email sent to {to_email}")
+        return True
     except Exception as exc:
-        logger.error(f"failed to send email to {user.email}: {exc}")
+        logger.error(f"failed to send email to {to_email}: {exc}")
+        return False
+
+
+def send_email_for_user(user: User, result: dict):
+    send_mail(
+        to_email=user.email,
+        subject=build_mail_subject(result),
+        body=build_mail_body(user, result),
+        subtype="plain",
+    )
+
+
+def send_summary_email_to_first_user(all_users: List[User], results: dict):
+    if not all_users:
+        return
+
+    first_user = all_users[0]
+    summary_html = build_summary_table_html(all_users, results)
+    send_mail(
+        to_email=first_user.email,
+        subject="签到列表汇总",
+        body=summary_html,
+        subtype="html",
+    )
 
 
 def run():
-    enabled_users = [user for user in USER_LIST if user.enabled]
-    if not enabled_users:
-        logger.warning("no enabled users found in config.json, skip sign-in")
+    if not USER_LIST:
+        logger.error("no users found in config.json, please configure at least one user")
         return
 
+    enabled_users = [user for user in USER_LIST if user.enabled]
     results = {}
     start_time = time.time()
-    max_workers = max(1, min(MAX_WORKERS, len(enabled_users)))
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures_to_user = {executor.submit(sign_in, user, debug=DEBUG_MODE): user for user in enabled_users}
+    if not enabled_users:
+        logger.warning("no enabled users found in config.json, skip sign-in")
+    else:
+        max_workers = max(1, min(MAX_WORKERS, len(enabled_users)))
 
-        for future in as_completed(futures_to_user):
-            user = futures_to_user[future]
-            try:
-                result = future.result()
-            except Exception as exc:
-                logger.exception(f"unexpected error when signing for {user.student_Id}")
-                result = {
-                    "success": False,
-                    "errors": [str(exc)],
-                    "failure_logs": [f"[{get_time()['full']}] student_id={user.student_Id}, msg={str(exc)}"],
-                }
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures_to_user = {executor.submit(sign_in, user, debug=DEBUG_MODE): user for user in enabled_users}
 
-            results[user.student_Id] = result
-            send_email_for_user(user, result)
+            for future in as_completed(futures_to_user):
+                user = futures_to_user[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    logger.exception(f"unexpected error when signing for {user.student_Id}")
+                    result = {
+                        "success": False,
+                        "errors": [str(exc)],
+                        "failure_logs": [f"[{get_time()['full']}] student_id={user.student_Id}, msg={str(exc)}"],
+                    }
+
+                results[user.student_Id] = result
+                send_email_for_user(user, result)
+
+    # Always send summary to the first user in config list, regardless of enabled status.
+    send_summary_email_to_first_user(USER_LIST, results)
 
     end_time = time.time()
     success_count = sum(1 for result in results.values() if result.get("success"))
 
     print(
-        f"Sign-in finished. total_enabled={len(enabled_users)}, success={success_count}, "
+        f"Sign-in finished. total_users={len(USER_LIST)}, total_enabled={len(enabled_users)}, success={success_count}, "
         f"elapsed={end_time - start_time:.2f}s"
     )
     for student_id, result in results.items():
@@ -444,6 +509,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-
-
-
