@@ -385,7 +385,7 @@ def build_summary_table_block_html(all_users: List[User], results: dict) -> str:
     return (
         f"<p>签到时间: {escape(get_time()['full'])}</p>"
         "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse: collapse;'>"
-        "<thead><tr><th>username</th><th>学号</th><th>邮箱</th><th>开启状态</th><th>签到是否成功</th></tr></thead>"
+        "<thead><tr><th>姓名</th><th>学号</th><th>邮箱</th><th>开启状态</th><th>执行结果</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody>"
         "</table>"
     )
