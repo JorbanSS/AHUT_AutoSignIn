@@ -1,112 +1,168 @@
-# 安徽工业大学晚寝自动签到脚本 (AHUT Auto Sign-in)
+﻿# 安徽工业大学晚寝自动签到脚本 (AHUT Auto Sign-in)
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg )](https://www.python.org/downloads/ )
-[![License](https://img.shields.io/badge/License-MIT-green.svg )](https://opensource.org/licenses/MIT )
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-这是一个用于**安徽工业大学（AHUT）学生考勤系统**的自动化晚寝签到 Python 脚本。它通过模拟微信客户端的 API 请求，帮助用户自动完成每日的晚寝签到流程，解放双手。
-
-## 📢 公共服务（推荐）
-
-为了方便不熟悉代码的同学，本项目已部署并提供了一个公共的 Web 服务。你只需在网页上提交一次信息，系统便会为你每日自动签到。
-
-*   **访问地址**: ~~**[wqqd.spance.dpdns.org](http://wqqd.spance.dpdns.org )**~~ (为了省钱，前端页面已关闭，下学期再开)
-*   **账号**: 你的学号
-*   **密码**: 你的考勤系统密码（与信息门户密码一致）
-
-**服务说明**:
-*   目前服务内置了**秀山校区**和**佳山校区**通用的宿舍签到地点。
-*   经实际测试，本部同学可以正常使用并成功签到。
-*   我们承诺对你的个人信息进行严格保密，密码将经过加密处理后存储。
-
-如有任何使用问题或建议，欢迎发送邮件至 **reply@spance.dpdns.org** 进行咨询。
+用于安徽工业大学（AHUT）学生考勤系统的自动化晚寝签到脚本。项目支持多用户并发签到、失败重试，以及签到结果邮件通知。
 
 ---
 
-## ✨ 项目特性
+## 功能概览
 
-*   **全自动流程**: 完整模拟从登录、获取任务到最终提交签到的所有步骤。
-*   **强大的容错性**: 内置重试机制，尽可能降低偶发性网络错误导致的签到失败。
-*   **多用户支持**: 可在配置中添加多个用户信息，一次运行为多人完成签到。
-*   **高效率并发**: 使用多线程并发执行，即使多人签到也能在数秒内完成。
-*   **高度模拟**: 包含随机延迟和完整的请求头，有效避免被服务器拦截。
-*   **配置简单**: 只需在脚本顶部填写学号和密码即可开始使用。
+- 自动完成签到全流程：登录、任务获取、提交签到。
+- 多用户并发执行，支持批量签到。
+- 内置重试机制，降低偶发网络波动影响。
+- 配置文件独立：使用 `config.json` 管理参数，不需要改代码。
+- 邮件通知：每位用户签到后都会发送结果邮件（成功/失败都会发）。
 
-## 🚀 如何自行部署和使用
+---
 
-如果你希望在自己的设备上运行此脚本，请遵循以下步骤。
+## 项目文件说明
+
+- `main.py`：签到主程序。
+- `config.example.json`：可提交到仓库的样板配置。
+- `config.json`：本地真实配置（已在 `.gitignore` 忽略，不会上传）。
+
+---
+
+## 快速开始
 
 ### 1. 环境准备
 
-*   确保你已安装 Python 3.8 或更高版本。
-*   克隆或下载本仓库到你的本地设备。
+- Python 3.8+
+- 已克隆本仓库
 
 ### 2. 安装依赖
-
-本项目仅依赖 `requests` 库。你可以通过 `pip` 进行安装。
-
-```bash
-pip install requests
-```
-
-或者，通过依赖文件 `requirements.txt` ，使用以下命令安装：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. 配置用户信息
+### 3. 生成本地配置
 
-打开主脚本文件（ `main.py`），找到 `USER_LIST` 变量，并按照以下格式添加你的信息：
+Linux/macOS:
 
-```python
-# 示例：
-USER_LIST = [
-    # 仅填写学号，使用默认密码
-    User(259000000),
-
-    # 填写学号和姓名（姓名会自动获取，可不填）
-    User(259000001, "张三"),
-
-    # 填写学号、姓名和自定义密码
-    User(259000003, "李四", "your_password"),
-
-    # 自定义签到经纬度
-    User(259000004, "王五", latitude=118.123, longitude=31.456),
-]
+```bash
+cp config.example.json config.json
 ```
-**注意**:
-*   `student_Id` (学号) 是**必填项**。
-*   如果你的考勤系统密码是初始密码 `Ahgydx@920`，则无需填写 `password` 字段。
-*   `latitude` (纬度) 和 `longitude` (经度) 默认为校内地址，但仍建议在定义用户的时候修改为自身宿舍的经纬度。
 
-### 4. 运行脚本
+Windows PowerShell:
 
-配置完成后，直接在终端中运行脚本即可。
+```powershell
+Copy-Item .\config.example.json .\config.json
+```
+
+### 4. 编辑 `config.json`
+
+至少填写以下字段：
+
+- `users[].student_id`：学号（必填）
+- `users[].password`：考勤系统密码
+- `users[].email`：该用户接收通知的邮箱
+- `email.sender_email`：发件邮箱
+- `email.sender_password`：SMTP 密码/授权码
+
+配置示例：
+
+```json
+{
+  "log_level": "INFO",
+  "debug": false,
+  "max_retries": 4,
+  "max_token_retries": 3,
+  "max_workers": 20,
+  "http_timeout_seconds": 10,
+  "email": {
+    "enabled": true,
+    "account_type": "IMAP",
+    "imap_server": "imap.exmail.qq.com",
+    "imap_port": 993,
+    "imap_ssl": true,
+    "smtp_server": "smtp.exmail.qq.com",
+    "smtp_port": 465,
+    "use_ssl": true,
+    "use_tls": false,
+    "sender_name": "AHUT Auto Sign-In",
+    "sender_email": "auto-sign-in@jorban.top",
+    "sender_password": "YOUR_SMTP_PASSWORD"
+  },
+  "users": [
+    {
+      "student_id": 259000001,
+      "password": "YOUR_AHUT_PASSWORD",
+      "email": "user@example.com",
+      "is_encrypted": 0,
+      "latitude": 118.554951,
+      "longitude": 31.675607
+    }
+  ]
+}
+```
+
+### 5. 运行脚本
 
 ```bash
 python main.py
 ```
 
-脚本会立即执行，执行完毕后，你将在控制台看到详细的签到结果报告。
+说明：
 
-### 5. 实现每日自动运行 (进阶)
-
-为了实现全自动签到，你可以将脚本部署在服务器（如云服务器、树莓派等）上，并使用定时任务工具来每日自动执行。
-
-*   **对于 Linux/macOS**: 使用 `crontab`。
-*   **对于 Windows**: 使用 "任务计划程序"。
-*   **使用 GitHub Actions**: Fork 本仓库，利用 GitHub Actions 的定时触发功能，实现云端免费、自动化的每日签到。(未使用过此方式)
-
-## ⚠️ 免责声明
-
-*   本项目仅供学习和技术交流使用，旨在减轻重复性劳动。
-*   请勿用于任何非法用途或商业活动。
-*   由于学校系统可能随时更新，本脚本的有效性不作永久保证。
-*   使用本项目（包括公共服务和自行部署）即代表你同意承担所有可能由此产生的风险。开发者不承担任何因使用不当或系统更新导致的签到失败、账号异常等后果。
-
-## 🤝 贡献与支持
-
-*   如果你发现了 Bug 或有任何改进建议，欢迎提交 Issues 或 Pull Requests。
-*   如果你觉得这个项目对你有帮助，不妨给它一个 ⭐ Star！
+- `debug=false` 时，仅在签到时间窗口内执行（代码默认校验 21:20 之后）。
+- 需要白天联调时，可临时改为 `debug=true`。
 
 ---
+
+## 邮件通知规则
+
+- 无论签到成功或失败，都会发送邮件。
+- 成功邮件标题：`签到成功`
+- 失败邮件标题：`签到失败`
+- 失败邮件正文：失败日志（包含时间、步骤、错误信息、重试信息）
+
+---
+
+## 自动化运行（进阶）
+
+可通过系统定时任务每天自动执行：
+
+- Linux/macOS：`crontab`
+- Windows：任务计划程序
+- GitHub Actions：可使用定时触发工作流
+
+---
+
+## 安全与提交规范
+
+- `config.json` 包含账号、密码、邮箱配置，禁止提交到远程仓库。
+- 仓库已在 `.gitignore` 忽略 `config.json`。
+- 仅提交 `config.example.json` 作为公共样板。
+
+---
+
+## 常见问题
+
+### 邮件发送失败
+
+- 检查 `smtp_server`、`smtp_port`、`use_ssl` 是否正确。
+- 检查 `sender_password` 是否为 SMTP 可用密码/授权码。
+- 检查服务器网络是否允许访问 `smtp.exmail.qq.com:465`。
+
+### 提示未到签到时间
+
+- 这是正常保护逻辑。
+- 如需联调，请将 `config.json` 中 `debug` 设置为 `true`。
+
+---
+
+## 免责声明
+
+- 本项目仅供学习与技术交流使用。
+- 请勿用于任何非法用途或商业活动。
+- 学校系统接口可能变更，脚本有效性不作永久保证。
+- 使用本项目产生的风险由使用者自行承担。
+
+---
+
+## 贡献
+
+欢迎提交 Issue 或 Pull Request 来改进项目。

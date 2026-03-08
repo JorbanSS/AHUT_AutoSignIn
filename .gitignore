@@ -20,3 +20,5 @@ requirements.txt.bak
 # 日志和数据库文件
 *.log
 *.sqlite3
+# Local secrets
+config.json

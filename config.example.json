@@ -1,0 +1,33 @@
+﻿{
+  "log_level": "INFO",
+  "debug": false,
+  "max_retries": 4,
+  "max_token_retries": 3,
+  "max_workers": 20,
+  "http_timeout_seconds": 10,
+  "email": {
+    "enabled": true,
+    "account_type": "IMAP",
+    "imap_server": "imap.exmail.qq.com",
+    "imap_port": 993,
+    "imap_ssl": true,
+    "smtp_server": "smtp.exmail.qq.com",
+    "smtp_port": 465,
+    "use_ssl": true,
+    "use_tls": false,
+    "sender_name": "AHUT Auto Sign-In",
+    "sender_email": "auto-sign-in@example.com",
+    "sender_password": "YOUR_SMTP_PASSWORD"
+  },
+  "users": [
+    {
+      "student_id": 259000001,
+      "username": "",
+      "password": "YOUR_AHUT_PASSWORD",
+      "is_encrypted": 0,
+      "latitude": 118.554951,
+      "longitude": 31.675607,
+      "email": "user@example.com"
+    }
+  ]
+}
