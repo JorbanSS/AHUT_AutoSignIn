@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-用于安徽工业大学（AHUT）学生考勤系统的自动化晚寝签到脚本。项目支持多用户并发签到、失败重试，以及签到结果邮件通知。
+用于安徽工业大学（AHUT）学生考勤系统的自动化晚寝签到脚本。支持多用户并发、失败重试、签到结果邮件通知。
 
 ---
 
@@ -14,6 +14,7 @@
 - 内置重试机制，降低偶发网络波动影响。
 - 配置文件独立：使用 `config.json` 管理参数，不需要改代码。
 - 邮件通知：每位用户签到后都会发送结果邮件（成功/失败都会发）。
+- 用户开关：支持按用户设置是否启用签到。
 
 ---
 
@@ -59,6 +60,7 @@ Copy-Item .\config.example.json .\config.json
 - `users[].student_id`：学号（必填）
 - `users[].password`：考勤系统密码
 - `users[].email`：该用户接收通知的邮箱
+- `users[].enabled`：是否启用该用户签到（`true`/`false`）
 - `email.sender_email`：发件邮箱
 - `email.sender_password`：SMTP 密码/授权码
 
@@ -91,6 +93,7 @@ Copy-Item .\config.example.json .\config.json
       "student_id": 259000001,
       "password": "YOUR_AHUT_PASSWORD",
       "email": "user@example.com",
+      "enabled": true,
       "is_encrypted": 0,
       "latitude": 118.554951,
       "longitude": 31.675607

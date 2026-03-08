@@ -25,6 +25,7 @@
       "username": "",
       "password": "YOUR_AHUT_PASSWORD",
       "is_encrypted": 0,
+      "enabled": true,
       "latitude": 118.554951,
       "longitude": 31.675607,
       "email": "user@example.com"

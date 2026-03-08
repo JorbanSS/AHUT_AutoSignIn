@@ -30,6 +30,7 @@ class User:
     token: str = ""
     taskId: int = 0
     is_encrypted: int = 0
+    enabled: bool = True
 
 
 CONFIG_PATH = Path(__file__).with_name("config.json")
@@ -73,6 +74,7 @@ def build_users(users_cfg) -> List[User]:
                 longitude=float(item.get("longitude", 31.675607)),
                 email=str(item.get("email", "")).strip(),
                 is_encrypted=int(item.get("is_encrypted", 0)),
+                enabled=bool(item.get("enabled", True)),
             )
         )
 
@@ -402,16 +404,17 @@ def send_email_for_user(user: User, result: dict):
 
 
 def run():
-    if not USER_LIST:
-        logger.error("no users found in config.json, please configure at least one user")
+    enabled_users = [user for user in USER_LIST if user.enabled]
+    if not enabled_users:
+        logger.warning("no enabled users found in config.json, skip sign-in")
         return
 
     results = {}
     start_time = time.time()
-    max_workers = max(1, min(MAX_WORKERS, len(USER_LIST)))
+    max_workers = max(1, min(MAX_WORKERS, len(enabled_users)))
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures_to_user = {executor.submit(sign_in, user, debug=DEBUG_MODE): user for user in USER_LIST}
+        futures_to_user = {executor.submit(sign_in, user, debug=DEBUG_MODE): user for user in enabled_users}
 
         for future in as_completed(futures_to_user):
             user = futures_to_user[future]
@@ -432,7 +435,7 @@ def run():
     success_count = sum(1 for result in results.values() if result.get("success"))
 
     print(
-        f"Sign-in finished. total={len(USER_LIST)}, success={success_count}, "
+        f"Sign-in finished. total_enabled={len(enabled_users)}, success={success_count}, "
         f"elapsed={end_time - start_time:.2f}s"
     )
     for student_id, result in results.items():
@@ -441,3 +444,6 @@ def run():
 
 if __name__ == "__main__":
     run()
+
+
+
