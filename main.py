@@ -362,34 +362,39 @@ def build_mail_body(user: User, result: dict) -> str:
     return "未记录到失败日志"
 
 
-def build_summary_table_html(all_users: List[User], results: dict) -> str:
+def build_summary_table_block_html(all_users: List[User], results: dict) -> str:
     rows = []
     for user in all_users:
         user_result = results.get(user.student_Id)
-        if not user.enabled:
-            sign_status = "未执行(未启用)"
-        elif not user_result:
-            sign_status = "未执行"
+        enabled_status = "✅" if user.enabled else "❌"
+        if user_result and user_result.get("success"):
+            sign_status = "✅"
         else:
-            sign_status = "成功" if user_result.get("success") else "失败"
+            sign_status = "❌"
 
         rows.append(
             "<tr>"
             f"<td>{escape(user.username or '')}</td>"
             f"<td>{user.student_Id}</td>"
             f"<td>{escape(user.email)}</td>"
-            f"<td>{'开启' if user.enabled else '关闭'}</td>"
+            f"<td>{enabled_status}</td>"
             f"<td>{sign_status}</td>"
             "</tr>"
         )
 
     return (
-        "<html><body>"
         f"<p>签到时间: {escape(get_time()['full'])}</p>"
         "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse: collapse;'>"
         "<thead><tr><th>username</th><th>学号</th><th>邮箱</th><th>开启状态</th><th>签到是否成功</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody>"
         "</table>"
+    )
+
+
+def build_summary_table_html(all_users: List[User], results: dict) -> str:
+    return (
+        "<html><body>"
+        f"{build_summary_table_block_html(all_users, results)}"
         "</body></html>"
     )
 
@@ -461,11 +466,42 @@ def send_summary_email_to_first_user(all_users: List[User], results: dict):
     )
 
 
+def send_combined_email_to_admin_when_signed(admin_user: User, admin_result: dict, all_users: List[User], results: dict):
+    display_name = escape(admin_user.username or "")
+    if admin_result.get("success"):
+        admin_detail_html = "<p>管理员签到结果: ✅ 签到成功</p>"
+    else:
+        failure_logs = admin_result.get("failure_logs", [])
+        if failure_logs:
+            details = "\n".join(str(item) for item in failure_logs)
+        else:
+            errors = admin_result.get("errors", [])
+            details = "\n".join(str(item) for item in errors) if errors else "未记录到失败日志"
+        admin_detail_html = f"<p>管理员签到结果: ❌ 签到失败</p><pre>{escape(details)}</pre>"
+
+    html_body = (
+        "<html><body>"
+        f"<p>管理员: {display_name} ({admin_user.student_Id})</p>"
+        f"{admin_detail_html}"
+        "<hr/>"
+        "<h3>签到列表汇总</h3>"
+        f"{build_summary_table_block_html(all_users, results)}"
+        "</body></html>"
+    )
+    send_mail(
+        to_email=admin_user.email,
+        subject=build_mail_subject(admin_result),
+        body=html_body,
+        subtype="html",
+    )
+
+
 def run():
     if not USER_LIST:
         logger.error("no users found in config.json, please configure at least one user")
         return
 
+    admin_user = USER_LIST[0]
     enabled_users = [user for user in USER_LIST if user.enabled]
     results = {}
     start_time = time.time()
@@ -491,10 +527,16 @@ def run():
                     }
 
                 results[user.student_Id] = result
-                send_email_for_user(user, result)
+                if user.student_Id != admin_user.student_Id:
+                    send_email_for_user(user, result)
 
-    # Always send summary to the first user in config list, regardless of enabled status.
-    send_summary_email_to_first_user(USER_LIST, results)
+    admin_result = results.get(admin_user.student_Id)
+    if admin_result is None:
+        # Admin did not participate in sign-in, send summary separately.
+        send_summary_email_to_first_user(USER_LIST, results)
+    else:
+        # Admin participated in sign-in, merge admin result and summary in one email.
+        send_combined_email_to_admin_when_signed(admin_user, admin_result, USER_LIST, results)
 
     end_time = time.time()
     success_count = sum(1 for result in results.values() if result.get("success"))
