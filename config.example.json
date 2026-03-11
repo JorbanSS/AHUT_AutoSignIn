@@ -5,6 +5,10 @@
   "max_token_retries": 3,
   "max_workers": 20,
   "http_timeout_seconds": 10,
+  "sign_time_window": {
+    "start": "21:20:00",
+    "end": "21:40:00"
+  },
   "email": {
     "enabled": true,
     "account_type": "IMAP",
