@@ -27,3 +27,6 @@ config.json
 # Daily output logs
 logs/*
 !logs/.gitkeep
+
+# Old Version
+old_app
