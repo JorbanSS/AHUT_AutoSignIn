@@ -9,19 +9,20 @@
 - 非管理员用户先签到，管理员最后签到
 - 普通用户签到完成后立即发送个人结果邮件
 - 管理员接收一封“管理员结果 + 全员汇总”邮件
-- 交互式用户管理脚本（自动保存）
+- 常驻循环运行：当天完成后等待次日窗口继续执行
+- 当天防重：同一天只执行一轮，避免重复签到
+- 请求级重试 + 流程级重试（网络抖动下更稳）
 - 运行日志按年/月/日落盘
 
 ## 项目结构
 
-- `main.py`：程序入口
+- `main.py`：程序入口（常驻模式）
 - `app/`：核心业务模块
-  - `runner.py`：总调度（随机时间、并发、管理员最后执行）
-  - `workflow.py`：签到流程（分步调用接口、重试）
+  - `runner.py`：总调度（随机时间、并发、跨日循环、防重复）
+  - `workflow.py`：签到流程（分步调用接口、双层重试）
   - `email_service.py`：邮件模板与发送
   - `config.py`：配置加载与校验
   - `logging_setup.py`：控制台 + 文件日志
-- `manage_users.py`：交互式用户管理
 - `config.example.json`：配置模板
 - `logs/`：日志目录（自动创建年月子目录）
 
@@ -57,7 +58,10 @@ Copy-Item .\config.example.json .\config.json
   "max_retries": 4,
   "max_token_retries": 3,
   "max_workers": 20,
-  "http_timeout_seconds": 10,
+  "http_connect_timeout_seconds": 3,
+  "http_read_timeout_seconds": 10,
+  "http_request_retries": 2,
+  "http_retry_backoff_seconds": 1.0,
   "sign_time_window": {
     "start": "21:20:00",
     "end": "22:00:00"
@@ -82,31 +86,19 @@ Copy-Item .\config.example.json .\config.json
 - `users[0]` 视为管理员账号。
 - 普通用户会在 `sign_time_window.start ~ sign_time_window.end` 内随机时间签到。
 - 当普通用户全部完成后，管理员最后签到并接收汇总邮件。
-
-## 交互式管理用户
-
-运行：
-
-```bash
-python manage_users.py
-```
-
-交互行为：
-
-- 每次询问前会清空终端并展示当前用户列表。
-- 每次新增/编辑/删除/启用状态切换后会自动保存到 `config.json`。
-- 菜单项：
-  - `2` 新增用户
-  - `3` 编辑用户
-  - `4` 删除用户
-  - `5` 切换启用/禁用
-  - `7` 仅退出
+- `http_timeout_seconds` 仍兼容（未配置新字段时可作为读超时兜底）。
 
 ## 运行签到
 
 ```bash
 python main.py
 ```
+
+说明：
+
+- 程序会常驻运行，不会在单次执行后退出。
+- 当天签到完成后会输出次日预计签到时间，并等待到次日窗口。
+- 防重复状态保存在 `logs/run_state.json`。
 
 ## 日志输出
 
@@ -138,4 +130,3 @@ logs/202603/2026-03-11.log
 ## 免责声明
 
 本项目仅供学习与技术交流使用，请遵守学校及相关平台规范。
-

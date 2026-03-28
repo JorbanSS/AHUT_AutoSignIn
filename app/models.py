@@ -30,6 +30,9 @@ class AppConfig:
     max_token_retries: int
     debug: bool
     max_workers: int
-    http_timeout_seconds: int
+    http_connect_timeout_seconds: int
+    http_read_timeout_seconds: int
+    http_request_retries: int
+    http_retry_backoff_seconds: float
     email_config: dict
     sign_time_window: SignTimeWindow

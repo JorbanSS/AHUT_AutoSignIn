@@ -36,6 +36,27 @@ def parse_hms(value: str, field_name: str) -> str:
     return text
 
 
+def parse_positive_int(value, field_name: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be a positive integer")
+    return parsed
+
+
+def parse_non_negative_int(value, field_name: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise ValueError(f"{field_name} must be a non-negative integer")
+    return parsed
+
+
+def parse_positive_float(value, field_name: str) -> float:
+    parsed = float(value)
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be a positive number")
+    return parsed
+
+
 def build_users(users_cfg) -> List[User]:
     users = []
     if not isinstance(users_cfg, list):
@@ -76,14 +97,35 @@ def load_app_config(config_path: Path) -> AppConfig:
     config = load_config(config_path)
     email_config = config.get("email", {})
 
+    legacy_timeout = parse_positive_int(config.get("http_timeout_seconds", 10), "http_timeout_seconds")
+    connect_timeout = parse_positive_int(
+        config.get("http_connect_timeout_seconds", 3),
+        "http_connect_timeout_seconds",
+    )
+    read_timeout = parse_positive_int(
+        config.get("http_read_timeout_seconds", legacy_timeout),
+        "http_read_timeout_seconds",
+    )
+    request_retries = parse_non_negative_int(
+        config.get("http_request_retries", 2),
+        "http_request_retries",
+    )
+    retry_backoff_seconds = parse_positive_float(
+        config.get("http_retry_backoff_seconds", 1.0),
+        "http_retry_backoff_seconds",
+    )
+
     return AppConfig(
         log_level=parse_log_level(config.get("log_level", "INFO")),
         users=build_users(config.get("users", [])),
-        max_retries=int(config.get("max_retries", 4)),
-        max_token_retries=int(config.get("max_token_retries", 3)),
+        max_retries=parse_positive_int(config.get("max_retries", 4), "max_retries"),
+        max_token_retries=parse_non_negative_int(config.get("max_token_retries", 3), "max_token_retries"),
         debug=bool(config.get("debug", False)),
-        max_workers=int(config.get("max_workers", 20)),
-        http_timeout_seconds=int(config.get("http_timeout_seconds", 10)),
+        max_workers=parse_positive_int(config.get("max_workers", 20), "max_workers"),
+        http_connect_timeout_seconds=connect_timeout,
+        http_read_timeout_seconds=read_timeout,
+        http_request_retries=request_retries,
+        http_retry_backoff_seconds=retry_backoff_seconds,
         email_config=email_config if isinstance(email_config, dict) else {},
         sign_time_window=build_sign_time_window(config.get("sign_time_window", {})),
     )

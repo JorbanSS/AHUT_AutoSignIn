@@ -1,11 +1,12 @@
 ﻿import logging
 import smtplib
 import ssl
+from datetime import datetime
 from email.header import Header
 from email.mime.text import MIMEText
 from email.utils import formataddr
 from html import escape
-from typing import List
+from typing import Dict, List, Optional
 
 from .models import User
 from .time_utils import get_time
@@ -46,12 +47,31 @@ def build_result_card_html(user: User, result: dict, role_label: str) -> str:
     )
 
 
-def build_summary_table_block_html(all_users: List[User], results: dict) -> str:
+def format_display_time(time_value: Optional[object]) -> str:
+    if time_value is None:
+        return "-"
+
+    if isinstance(time_value, datetime):
+        return time_value.strftime("%Y-%m-%d %H:%M:%S")
+
+    text = str(time_value).strip()
+    return text or "-"
+
+
+def build_summary_table_block_html(
+    all_users: List[User],
+    results: dict,
+    next_day_eta_map: Optional[Dict[int, datetime]] = None,
+) -> str:
     rows = []
+    next_day_eta_map = next_day_eta_map or {}
+
     for user in all_users:
         user_result = results.get(user.student_Id)
         enabled_status = "✅" if user.enabled else "❌"
         sign_status = "✅" if user_result and user_result.get("success") else "❌"
+        sign_time = format_display_time(user_result.get("sign_time") if user_result else None)
+        next_day_eta = format_display_time(next_day_eta_map.get(user.student_Id))
 
         rows.append(
             "<tr>"
@@ -60,20 +80,26 @@ def build_summary_table_block_html(all_users: List[User], results: dict) -> str:
             f"<td>{escape(user.email)}</td>"
             f"<td>{enabled_status}</td>"
             f"<td>{sign_status}</td>"
+            f"<td>{escape(sign_time)}</td>"
+            f"<td>{escape(next_day_eta)}</td>"
             "</tr>"
         )
 
     return (
         f"<p>汇总时间: {escape(get_time()['full'])}</p>"
         "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse: collapse;'>"
-        "<thead><tr><th>姓名</th><th>学号</th><th>邮箱</th><th>开启状态</th><th>执行结果</th></tr></thead>"
+        "<thead><tr><th>姓名</th><th>学号</th><th>邮箱</th><th>开启状态</th><th>执行结果</th><th>签到具体时间</th><th>次日预计签到时间</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody>"
         "</table>"
     )
 
 
-def build_summary_table_html(all_users: List[User], results: dict) -> str:
-    return "<html><body>" + build_summary_table_block_html(all_users, results) + "</body></html>"
+def build_summary_table_html(
+    all_users: List[User],
+    results: dict,
+    next_day_eta_map: Optional[Dict[int, datetime]] = None,
+) -> str:
+    return "<html><body>" + build_summary_table_block_html(all_users, results, next_day_eta_map) + "</body></html>"
 
 
 class EmailService:
@@ -133,12 +159,17 @@ class EmailService:
             subtype="html",
         )
 
-    def send_summary_email_to_first_user(self, all_users: List[User], results: dict) -> None:
+    def send_summary_email_to_first_user(
+        self,
+        all_users: List[User],
+        results: dict,
+        next_day_eta_map: Optional[Dict[int, datetime]] = None,
+    ) -> None:
         if not all_users:
             return
 
         first_user = all_users[0]
-        summary_html = build_summary_table_html(all_users, results)
+        summary_html = build_summary_table_html(all_users, results, next_day_eta_map)
         self.send_mail(
             to_email=first_user.email,
             subject="签到列表汇总",
@@ -152,13 +183,14 @@ class EmailService:
         admin_result: dict,
         all_users: List[User],
         results: dict,
+        next_day_eta_map: Optional[Dict[int, datetime]] = None,
     ) -> None:
         html_body = (
             "<html><body>"
             + build_result_card_html(admin_user, admin_result, "签到执行结果")
             + "<hr/>"
             + "<h3>签到列表汇总</h3>"
-            + build_summary_table_block_html(all_users, results)
+            + build_summary_table_block_html(all_users, results, next_day_eta_map)
             + "</body></html>"
         )
 
