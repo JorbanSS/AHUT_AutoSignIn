@@ -6,6 +6,7 @@ Thumbs.db
 .idea/
 
 # Python 虚拟环境目录
+.venv/
 venv/
 */venv/
 __pycache__/
